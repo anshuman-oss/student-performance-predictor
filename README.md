@@ -1,0 +1,121 @@
+import tkinter as tk
+from tkinter import messagebox
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import train_test_split
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
+
+# Sample dataset
+data = {
+    'Hours': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+    'Pass':  [0, 0, 0, 0, 1, 1, 1, 1, 1, 1]
+}
+df = pd.DataFrame(data)
+X = df[['Hours']]
+y = df['Pass']
+
+# Model training
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=0)
+model = LogisticRegression()
+model.fit(X_train, y_train)
+
+# GUI window
+root = tk.Tk()
+root.title("Student Performance Predictor")
+root.geometry("700x600")
+
+# Plotting the logistic regression curve
+fig, ax = plt.subplots(figsize=(6, 4))
+X_range = np.linspace(0, 10, 100).reshape(-1, 1)
+probs = model.predict_proba(pd.DataFrame(X_range, columns=['Hours']))[:, 1]
+
+ax.scatter(df['Hours'], df['Pass'], color='blue', label='Actual Data')
+ax.plot(X_range, probs, color='red', label='Logistic Curve')
+ax.set_title("Logistic Regression Curve")
+ax.set_xlabel("Hours Studied")
+ax.set_ylabel("Probability of Passing")
+ax.legend()
+ax.grid(True)
+
+# Embedding matplotlib plot
+plot_frame = tk.Frame(root)
+plot_frame.pack()
+canvas = FigureCanvasTkAgg(fig, master=plot_frame)
+toolbar = NavigationToolbar2Tk(canvas, plot_frame)
+toolbar.update()
+canvas.get_tk_widget().pack()
+
+# ✅ Add mouse scroll zoom
+def zoom(event):
+    base_scale = 1.2
+    ax = fig.axes[0]
+    x = event.x
+    y = event.y
+    inv = ax.transData.inverted()
+    xdata, ydata = inv.transform((x, y))
+
+    cur_xlim = ax.get_xlim()
+    cur_ylim = ax.get_ylim()
+
+    if event.delta > 0:
+        scale_factor = 1 / base_scale
+    else:
+        scale_factor = base_scale
+
+    new_xlim = [
+        xdata - (xdata - cur_xlim[0]) * scale_factor,
+        xdata + (cur_xlim[1] - xdata) * scale_factor
+    ]
+    new_ylim = [
+        ydata - (ydata - cur_ylim[0]) * scale_factor,
+        ydata + (cur_ylim[1] - ydata) * scale_factor
+    ]
+
+    ax.set_xlim(new_xlim)
+    ax.set_ylim(new_ylim)
+    canvas.draw_idle()
+
+canvas.get_tk_widget().bind("<MouseWheel>", zoom)
+
+# Input area
+input_frame = tk.Frame(root)
+input_frame.pack(pady=10)
+
+tk.Label(input_frame, text="Enter study hours:", font=("Arial", 12)).grid(row=0, column=0, padx=5)
+
+hours_var = tk.StringVar()
+entry = tk.Entry(input_frame, textvariable=hours_var, font=("Arial", 12))
+entry.grid(row=0, column=1, padx=5)
+
+result_label = tk.Label(root, text="", font=("Arial", 12))
+result_label.pack(pady=10)
+
+# Prediction logic
+def predict_result():
+    try:
+        raw_input = hours_var.get().strip().replace(',', '.')
+        print(f"[DEBUG] Raw input: '{raw_input}'")
+
+        if raw_input == "":
+            raise ValueError("Empty input")
+
+        hours = float(raw_input)
+        print(f"[DEBUG] Parsed float: {hours}")
+
+        input_df = pd.DataFrame([[hours]], columns=['Hours'])
+        prediction = model.predict(input_df)[0]
+
+        result = "🎯 Pass" if prediction == 1 else "❌ Fail"
+        result_label.config(text=result)
+
+    except Exception as e:
+        print(f"[DEBUG] Error: {e}")
+        messagebox.showerror("Input Error", "Please enter a valid number (e.g. 5.5).")
+        result_label.config(text="")
+
+tk.Button(input_frame, text="Predict", command=predict_result).grid(row=0, column=2, padx=5)
+
+# Launch GUI
+root.mainloop()
